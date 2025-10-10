@@ -3,7 +3,7 @@ import pandas as pd
 import time
 
 
-def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dict=None):
+def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dict=None, optimized=None, startDate=None, endDate=None, useTargetVariableDates=None):
     """
     creates connection to correct API URL to list signals, show signal
     details, and return complete signal data
@@ -11,6 +11,10 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
     :param signal_id: signal's unique ID number, to show signal details
     or output full signal
     :param output: show signal data or not
+    :param optimized: optional parameter for optimized signal output
+    :param startDate: optional start date filter (YYYY-MM-DD format)
+    :param endDate: optional end date filter (YYYY-MM-DD format)
+    :param useTargetVariableDates: optional parameter to use target variable dates
     :return: request response as json
     """
     try:
@@ -22,7 +26,18 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
                 "Accept": "application/json",
             }
 
-            req = requests.get(url, headers=headers, proxies=proxy_dict)
+            # Build query parameters
+            params = {}
+            if optimized is not None:
+                params["optimized"] = optimized
+            if startDate is not None:
+                params["startDate"] = startDate
+            if endDate is not None:
+                params["endDate"] = endDate
+            if useTargetVariableDates is not None:
+                params["useTargetVariableDates"] = useTargetVariableDates
+
+            req = requests.get(url, headers=headers, params=params, proxies=proxy_dict)
 
             if req.status_code != 200:
                 print(
@@ -34,10 +49,13 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
             num_pages = resp["last_page"]
 
             for page in range(2, num_pages + 1):
+                # Add page parameter to existing params
+                page_params = params.copy()
+                page_params["page"] = page
                 next_page = requests.get(
                     f"http://app.readysignal.com/api/signals/{str(signal_id)}/output",
                     headers=headers,
-                    params={"page": page},
+                    params=page_params,
                     proxies=proxy_dict,
                 ).json()
                 resp["data"] += next_page["data"]
@@ -48,16 +66,25 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
         # list signals
         elif not signal_id:
             url = "http://app.readysignal.com/api/signals"
+            headers = {
+                "Authorization": "Bearer " + str(access_token),
+                "Accept": "application/json",
+            }
+            req = requests.get(url, headers=headers, proxies=proxy_dict)
 
         # show signal details
         else:
             url = f"http://app.readysignal.com/api/signals/{str(signal_id)}"
-
-        headers = {
-            "Authorization": "Bearer " + str(access_token),
-            "Accept": "application/json",
-        }
-        req = requests.get(url, headers=headers, proxies=proxy_dict)
+            headers = {
+                "Authorization": "Bearer " + str(access_token),
+                "Accept": "application/json",
+            }
+            # Build query parameters for signal details
+            params = {}
+            if optimized is not None:
+                params["optimized"] = optimized
+            
+            req = requests.get(url, headers=headers, params=params if params else None, proxies=proxy_dict)
 
         return req.json()
     except Exception as e:
@@ -76,42 +103,55 @@ def list_signals(access_token, proxy_dict=None):
     return conn
 
 
-def get_signal_details(access_token, signal_id, proxy_dict=None):
+def get_signal_details(access_token, signal_id, proxy_dict=None, optimized=None):
     """
     shows the details for a specific signal
     :param access_token: user's unique access token
     :param signal_id: signal's unique ID number
     :param proxy_dict: dictionary of the protocol to the proxy url
+    :param optimized: optional parameter for optimized signal details
     :return: json of signal details
     """
-    conn = connect_to_readysignal(access_token, signal_id, proxy_dict=proxy_dict)
+    conn = connect_to_readysignal(access_token, signal_id, proxy_dict=proxy_dict, optimized=optimized)
     return conn
 
 
-def get_signal(access_token, signal_id, proxy_dict=None):
+def get_signal(access_token, signal_id, proxy_dict=None, optimized=None, startDate=None, endDate=None, useTargetVariableDates=None):
     """
     returns a signal's data in json format
     :param access_token: user's unique access token
     :param signal_id: signal's unique ID number
     :param proxy_dict: dictionary of the protocol to the proxy url
+    :param optimized: optional parameter for optimized signal output
+    :param startDate: optional start date filter (YYYY-MM-DD format)
+    :param endDate: optional end date filter (YYYY-MM-DD format)
+    :param useTargetVariableDates: optional parameter to use target variable dates
     :return: json of signal
     """
     conn = connect_to_readysignal(
-        access_token, signal_id, proxy_dict=proxy_dict, output=True
+        access_token, signal_id, proxy_dict=proxy_dict, output=True,
+        optimized=optimized, startDate=startDate, endDate=endDate, 
+        useTargetVariableDates=useTargetVariableDates
     )
     return conn
 
 
-def get_signal_pandas(access_token, signal_id, proxy_dict=None):
+def get_signal_pandas(access_token, signal_id, proxy_dict=None, optimized=None, startDate=None, endDate=None, useTargetVariableDates=None):
     """
     returns a signal's data as a Pandas DataFrame
     :param access_token: user's unique access token
     :param signal_id: signal's unique ID number
     :param proxy_dict: dictionary of the protocol to the proxy url
+    :param optimized: optional parameter for optimized signal output
+    :param startDate: optional start date filter (YYYY-MM-DD format)
+    :param endDate: optional end date filter (YYYY-MM-DD format)
+    :param useTargetVariableDates: optional parameter to use target variable dates
     :return: Pandas DataFrame of signal
     """
     conn = connect_to_readysignal(
-        access_token, signal_id, proxy_dict=proxy_dict, output=True
+        access_token, signal_id, proxy_dict=proxy_dict, output=True,
+        optimized=optimized, startDate=startDate, endDate=endDate, 
+        useTargetVariableDates=useTargetVariableDates
     )
     return pd.DataFrame.from_dict(conn)
 
@@ -161,6 +201,7 @@ def auto_discover(
     filename=None,
     df=None,
     create_custom_features=1,
+    filtered_geo_grains=None,
 ):
     """
     Creates a signal using your own data and the Auto Discover feature. Please check Ready Signal site for tips on
@@ -177,6 +218,7 @@ def auto_discover(
     Not to be used with 'filename'
     :param create_custom_features: a flag to denote whether or not the target feature will be saved to the
     ready signal platform for reporting reference.
+    :param filtered_geo_grains: optional parameter to filter geographic grains: "usa", "nonusa", or "all"
     :return: requests response object
     """
     base_url = "https://app.readysignal.com/api/auto-discovery"
@@ -189,16 +231,22 @@ def auto_discover(
         exit('Please use only one of "filename" or "df" for Auto Discover feature')
     elif create_custom_features not in [0, 1]:
         exit("Create Custom Features flag must be a 0 or a 1")
+    elif filtered_geo_grains is not None and filtered_geo_grains not in ["usa", "nonusa", "all"]:
+        exit('Filtered geo grains must be "usa", "nonusa", or "all"')
 
-    elif filename:
+    if filename:
         url = base_url + "/file"
+        data = {
+            "geo_grain": geo_grain,
+            "date_grain": date_grain,
+            "create_custom_features": create_custom_features,
+        }
+        if filtered_geo_grains is not None:
+            data["filtered_geo_grains"] = filtered_geo_grains
+        
         req = requests.post(
             url,
-            data={
-                "geo_grain": geo_grain,
-                "date_grain": date_grain,
-                "create_custom_features": create_custom_features,
-            },
+            data=data,
             files={"file": open(filename, "rb")},
             headers={"Authorization": "Bearer " + str(access_token)},
             proxies=proxy_dict,
@@ -212,6 +260,8 @@ def auto_discover(
             "create_custom_features": create_custom_features,
             "data": df.to_dict(orient="records"),
         }
+        if filtered_geo_grains is not None:
+            body["filtered_geo_grains"] = filtered_geo_grains
 
         req = requests.post(
             url,
