@@ -202,6 +202,7 @@ def auto_discover(
     df=None,
     create_custom_features=1,
     filtered_geo_grains=None,
+    signal_name=None,
 ):
     """
     Creates a signal using your own data and the Auto Discover feature. Please check Ready Signal site for tips on
@@ -219,6 +220,8 @@ def auto_discover(
     :param create_custom_features: a flag to denote whether or not the target feature will be saved to the
     ready signal platform for reporting reference.
     :param filtered_geo_grains: optional parameter to filter geographic grains: "usa", "nonusa", or "all"
+    :param signal_name: optional parameter to specify a custom name for the signal (max 255 characters).
+    If not provided, the signal name will default to 'Auto-discovery - [custom feature name]'
     :return: requests response object
     """
     base_url = "https://app.readysignal.com/api/auto-discovery"
@@ -243,6 +246,8 @@ def auto_discover(
         }
         if filtered_geo_grains is not None:
             data["filtered_geo_grains"] = filtered_geo_grains
+        if signal_name is not None:
+            data["signal_name"] = signal_name
         
         req = requests.post(
             url,
@@ -262,6 +267,8 @@ def auto_discover(
         }
         if filtered_geo_grains is not None:
             body["filtered_geo_grains"] = filtered_geo_grains
+        if signal_name is not None:
+            body["signal_name"] = signal_name
 
         req = requests.post(
             url,
