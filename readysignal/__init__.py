@@ -159,7 +159,6 @@ def get_signal_pandas(access_token, signal_id, proxy_dict=None, optimized=None, 
     :param useTargetVariableDates: optional parameter to use target variable dates
     :return: Pandas DataFrame of signal
     """
-    print("Connecting to Ready Signal...")
     conn = connect_to_readysignal(
         access_token, signal_id, proxy_dict=proxy_dict, output=True,
         optimized=optimized, startDate=startDate, endDate=endDate, 
