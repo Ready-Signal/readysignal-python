@@ -1,4 +1,5 @@
 import requests
+from requests.exceptions import Timeout, RequestException
 import pandas as pd
 import time
 
@@ -20,7 +21,7 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
     try:
         # show signal
         if signal_id and output:
-            url = f"http://app.readysignal.com/api/signals/{str(signal_id)}/output"
+            url = f"https://app.readysignal.com/api/signals/{str(signal_id)}/output"
             headers = {
                 "Authorization": "Bearer " + str(access_token),
                 "Accept": "application/json",
@@ -37,7 +38,7 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
             if useTargetVariableDates is not None:
                 params["useTargetVariableDates"] = useTargetVariableDates
 
-            req = requests.get(url, headers=headers, params=params, proxies=proxy_dict)
+            req = requests.get(url, headers=headers, params=params, proxies=proxy_dict, timeout=30)
 
             if req.status_code != 200:
                 print(
@@ -53,10 +54,11 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
                 page_params = params.copy()
                 page_params["page"] = page
                 next_page = requests.get(
-                    f"http://app.readysignal.com/api/signals/{str(signal_id)}/output",
+                    f"https://app.readysignal.com/api/signals/{str(signal_id)}/output",
                     headers=headers,
                     params=page_params,
                     proxies=proxy_dict,
+                    timeout=30,
                 ).json()
                 resp["data"] += next_page["data"]
                 time.sleep(1)
@@ -65,16 +67,16 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
 
         # list signals
         elif not signal_id:
-            url = "http://app.readysignal.com/api/signals"
+            url = "https://app.readysignal.com/api/signals"
             headers = {
                 "Authorization": "Bearer " + str(access_token),
                 "Accept": "application/json",
             }
-            req = requests.get(url, headers=headers, proxies=proxy_dict)
+            req = requests.get(url, headers=headers, proxies=proxy_dict, timeout=30)
 
         # show signal details
         else:
-            url = f"http://app.readysignal.com/api/signals/{str(signal_id)}"
+            url = f"https://app.readysignal.com/api/signals/{str(signal_id)}"
             headers = {
                 "Authorization": "Bearer " + str(access_token),
                 "Accept": "application/json",
@@ -84,11 +86,20 @@ def connect_to_readysignal(access_token, signal_id=None, output=False, proxy_dic
             if optimized is not None:
                 params["optimized"] = optimized
             
-            req = requests.get(url, headers=headers, params=params if params else None, proxies=proxy_dict)
+            req = requests.get(url, headers=headers, params=params if params else None, proxies=proxy_dict, timeout=30)
 
         return req.json()
+    except Timeout as e:
+        print(f"Connection to Ready Signal timed out after 30 seconds. URL: {url if 'url' in locals() else 'N/A'}")
+        print(f"Timeout error: {e}")
+        return
+    except RequestException as e:
+        print(f"Connection to Ready Signal failed with request error. URL: {url if 'url' in locals() else 'N/A'}")
+        print(f"Error: {e}")
+        return
     except Exception as e:
-        print("Connection to Ready Signal failed. Error:", e)
+        print(f"Connection to Ready Signal failed with unexpected error. URL: {url if 'url' in locals() else 'N/A'}")
+        print(f"Error: {e}")
         return
 
 
@@ -148,6 +159,7 @@ def get_signal_pandas(access_token, signal_id, proxy_dict=None, optimized=None, 
     :param useTargetVariableDates: optional parameter to use target variable dates
     :return: Pandas DataFrame of signal
     """
+    print("Connecting to Ready Signal...")
     conn = connect_to_readysignal(
         access_token, signal_id, proxy_dict=proxy_dict, output=True,
         optimized=optimized, startDate=startDate, endDate=endDate, 
@@ -182,13 +194,13 @@ def delete_signal(access_token, signal_id, proxy_dict=None):
     :param proxy_dict: dictionary of the protocol to the proxy url
     :return: requests response object
     """
-    url = f"http://app.readysignal.com/api/signals/{str(signal_id)}"
+    url = f"https://app.readysignal.com/api/signals/{str(signal_id)}"
 
     headers = {
         "Authorization": "Bearer " + str(access_token),
         "Accept": "application/json",
     }
-    req = requests.delete(url, proxies=proxy_dict, headers=headers)
+    req = requests.delete(url, proxies=proxy_dict, headers=headers, timeout=30)
     print(req.json())
     return req
 
@@ -255,6 +267,7 @@ def auto_discover(
             files={"file": open(filename, "rb")},
             headers={"Authorization": "Bearer " + str(access_token)},
             proxies=proxy_dict,
+            timeout=30,
         )
     elif df is not None:
         url = base_url + "/array"
@@ -275,6 +288,7 @@ def auto_discover(
             json=body,
             headers={"Authorization": "Bearer " + str(access_token)},
             proxies=proxy_dict,
+            timeout=30,
         )
 
     else:
@@ -328,7 +342,7 @@ def connect_to_readysignal_features(
                 "features_id": features,
             }
 
-            req = requests.post(url, headers=headers, json=body)
+            req = requests.post(url, headers=headers, json=body, timeout=30)
 
             return req.json()
 
@@ -347,7 +361,7 @@ def connect_to_readysignal_features(
                     "Authorization": "Bearer " + str(access_token),
                     "Accept": "application/json",
                 }
-                req = requests.get(url, headers=headers)
+                req = requests.get(url, headers=headers, timeout=30)
                 feat_details[features[i]] = list(req.json().values())[0]
             return feat_details
 
@@ -365,7 +379,7 @@ def connect_to_readysignal_features(
                     "Authorization": "Bearer " + str(access_token),
                     "Accept": "application/json",
                 }
-                req = requests.get(url, headers=headers)
+                req = requests.get(url, headers=headers, timeout=30)
                 feat_info[features[i]] = list(req.json().values())[0]
             return feat_info
 
@@ -377,12 +391,21 @@ def connect_to_readysignal_features(
             "Authorization": "Bearer " + str(access_token),
             "Accept": "application/json",
         }
-        req = requests.get(url, headers=headers)
+        req = requests.get(url, headers=headers, timeout=30)
 
         return req.json()
 
+    except Timeout as e:
+        print(f"Connection to Ready Signal timed out after 30 seconds. URL: {url if 'url' in locals() else 'N/A'}")
+        print(f"Timeout error: {e}")
+        return
+    except RequestException as e:
+        print(f"Connection to Ready Signal failed with request error. URL: {url if 'url' in locals() else 'N/A'}")
+        print(f"Error: {e}")
+        return
     except Exception as e:
-        print("Connection to Ready Signal failed. Error:", e)
+        print(f"Connection to Ready Signal failed with unexpected error. URL: {url if 'url' in locals() else 'N/A'}")
+        print(f"Error: {e}")
         return
 
 
