@@ -157,14 +157,21 @@ def get_signal_pandas(access_token, signal_id, proxy_dict=None, optimized=None, 
     :param startDate: optional start date filter (YYYY-MM-DD format)
     :param endDate: optional end date filter (YYYY-MM-DD format)
     :param useTargetVariableDates: optional parameter to use target variable dates
-    :return: Pandas DataFrame of signal
+    :return: Pandas DataFrame of signal (date columns unchanged; value columns coerced to float64, with null/empty → NaN)
     """
     conn = connect_to_readysignal(
         access_token, signal_id, proxy_dict=proxy_dict, output=True,
         optimized=optimized, startDate=startDate, endDate=endDate, 
         useTargetVariableDates=useTargetVariableDates
     )
-    return pd.DataFrame.from_dict(conn)
+    df = pd.DataFrame.from_dict(conn)
+    # API returns null for missing values and sometimes string numbers; pandas infers object dtype.
+    # Coerce all value columns (everything except date columns) to float so callers get numeric types.
+    date_cols = {"start", "end", "end_at"}
+    value_cols = [c for c in df.columns if c not in date_cols]
+    if value_cols:
+        df[value_cols] = df[value_cols].apply(pd.to_numeric, errors="coerce")
+    return df
 
 
 def signal_to_csv(access_token, signal_id, file_name, proxy_dict=None):
